@@ -18,5 +18,7 @@ RUN npm install
 
 RUN chmod +x main.sh
 RUN chmod +x script.js
+# 2nd pro
+COPY kafka.pem kafka.pem
 
 ENTRYPOINT [ "/home/app/main.sh" ]
