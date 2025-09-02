@@ -67,10 +67,20 @@
 }
  
 @layer base {
+  html {
+    font-size: 20px; /* Zoomed-in base font size */
+    zoom: 1.1; /* Slight zoom for all content */
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    background: linear-gradient(135deg, #f0f4ff 0%, #e0e7ff 100%);
+  }
   * {
     @apply border-border;
   }
   body {
     @apply bg-background text-foreground;
+    min-height: 100vh;
+    font-family: var(--font-inter), var(--font-fira-code), sans-serif;
+    background: none;
   }
 }

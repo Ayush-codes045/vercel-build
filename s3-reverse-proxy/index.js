@@ -1,37 +1,59 @@
 const express = require('express')
 const httpProxy = require('http-proxy')
+const fs = require('fs');
+const { Client } = require('pg')
+require('dotenv').config(); 
 
 const app = express()
 const PORT = 8000
 
-const BASE_PATH = 'https://vercel-deploy-ayu.s3.ap-south-1.amazonaws.com/__outputs'
+const BASE_PATH = 'https://vercel-ayush.s3.ap-south-1.amazonaws.com/__outputs'
+
+
 
 const proxy = httpProxy.createProxy()
 
-app.use((req, res) => {
-    //ye jha user request kiya wo h
+// Setup PostgreSQL client with SSL CA
+const connectionString = process.env.DATABASE_URL.replace('?sslmode=require', '?sslmode=no-verify');
+const db = new Client({
+    connectionString: connectionString
+})
+db.connect()
+
+// const { Pool } = require('pg');
+
+// const db = new Pool({
+//   connectionString: process.env.DATABASE_URL,
+//   ssl: {
+//     rejectUnauthorized: false // required by Aiven
+//   }
+// });
+
+app.use(async (req, res) => {
     const hostname = req.hostname;
-    //ye jho mera folder name h wo nikal liye h
     const subdomain = hostname.split('.')[0];
 
-    // Custom Domain - DB Query
+    try {
+        // 1. Find project by subdomain
+        const projectResult = await db.query('SELECT id FROM "Project" WHERE "subdomain" = $1', [subdomain]);
+        if (projectResult.rows.length === 0) {
+            return res.status(404).send('Project not found');
+        }
+        const projectId = projectResult.rows[0].id;
 
-    //custom domain deployment id nikalna hoga 
+        // 2. Find latest READY deployment for this project
+        const deployResult = await db.query('SELECT id FROM "Deployement" WHERE "project_id" = $1 AND status = $2 ORDER BY "createdAt" DESC LIMIT 1', [projectId, 'READY']);
+        if (deployResult.rows.length === 0) {
+            return res.status(404).send('No deployment found');
+        }
+        const deploymentId = deployResult.rows[0].id;
 
-    //first part
-    //yha hamara resolve hoga
-    // const resolvesTo = `${BASE_PATH}/${subdomain}`
-
-
-    //only for testing
-    //todo:we have to do database query acoording to the subdomain we will get project id then we will resolve it
-    
-    const id='a091bac9-8de5-49e1-a924-f031bdefedea'
-    const resolvesTo = `${BASE_PATH}/${id}`
-
-
-    return proxy.web(req, res, { target: resolvesTo, changeOrigin: true })
-
+        const resolvesTo = `${BASE_PATH}/${deploymentId}`;
+        return proxy.web(req, res, { target: resolvesTo, changeOrigin: true });
+    } catch (err) {
+        console.error('Proxy error:', err);
+        return res.status(500).send('Internal server error');
+    }
 })
 
 proxy.on('proxyReq', (proxyReq, req, res) => {
